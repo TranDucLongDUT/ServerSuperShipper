@@ -33,7 +33,6 @@ io.sockets.on('connection', function (socket) {
     let data = {
       'user': result[0]
     }
-    //console.log(data);
     socket.broadcast.emit('onUserOnline', data)
   })
   clients[userId] = {
@@ -43,7 +42,6 @@ io.sockets.on('connection', function (socket) {
   param = [userId]
   con.query(sql, param, function (err, result) {
     result.forEach(room => {
-      //console.log(userId + ' join to ' + room.id);
       socket.join(room.id)
     })
   })
@@ -71,35 +69,77 @@ io.sockets.on('connection', function (socket) {
   })
 
   socket.on('news', async function (data) {
-    console.log('news: ', data)
     io.emit('news', data)
     if (data && data.news) {
-      data = JSON.parse(data.news)
-      const id = data.idNews
-      console.log('id',id)
-      const idUser = data.user.id
-      const description = data.description
-      const image = data.imageView
-      const type = data.type || 1
-      const createdAt = new Date()
-      const sqlInsertNews = 'INSERT INTO News (id, idUser, description, image, type, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
-      const paramNews = [id,idUser,description,image,type,createdAt]
-      const result = await query(sqlInsertNews, paramNews)
-      console.log('result create news: ',result)
+      try{
+		  data = JSON.parse(data.news)
+	      const id = data.idNews
+	      const idUser = data.user.id
+	      const description = data.description
+	      const image = data.imageView
+	      const type = data.type || 1
+	      const createdAt = new Date()
+	      const sqlInsertNews = 'INSERT INTO News (id, idUser, description, image, type, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
+	      const paramNews = [id,idUser,description,image,type,createdAt]
+	      const result = await query(sqlInsertNews, paramNews)
+	      console.log('result create news: ',result)
+      }catch(err) {
+
+      }
     }
   })
 
-  socket.on('likeNews', function (data) {
+  socket.on('likeNews',async function (data) {
     io.emit('likeNews', data)
+    if (data && data.news && data.user) {
+      try{
+        const news = JSON.parse(data.news)
+        const userLike = JSON.parse(data.user)
+        const idNews = news.idNews
+        const idUser = userLike.id
+        const sqlInsert = 'INSERT INTO LikeNews (idNews, idUser) VALUES (?, ?)'
+        const sqlDelete = 'DELETE FROM LikeNews WHERE idNews = ? AND idUser = ?'
+        const param = [idNews,idUser]
+        let resultQuery = ''
+        query('SELECT * FROM LikeNews').then(result => {
+          let isExists = false
+          for (let i =0; i < result.length; i++) {
+            if (result[i] && result[i].idNews === idNews && result[i].idUser === idUser) {
+              isExists = true;
+              break
+            }
+          }
+          if (isExists) {
+            resultQuery = query(sqlDelete,param)
+          } else {
+            resultQuery = query(sqlInsert,param)
+          }
+        })
+      }catch(err) {
+
+      }
+    }
   })
 
-  socket.on('comment', function (data) {
+  socket.on('comment', async function (data) {
     io.emit('comment', data)
+    if (data && data.comment) {
+      try{
+        data = JSON.parse(data.comment)
+        const id = data.idComment
+        const idNews = data.idNews
+        const idUser = data.user.id
+        const comment = data.comment
+        const createdAt = new Date()
+        const sqlInsertComment = 'INSERT INTO Comment (id, idNews, idUser, comment, createdAt) VALUES (?, ?, ?, ?, ?)'
+        const paramComment = [id,idNews,idUser,comment,createdAt]
+        const result = await query(sqlInsertComment, paramComment)
+      }catch(err) {
+
+      }
+    }
   })
 
-  socket.on('comment', function (data) {
-    io.emit('comment', data)
-  })
 
   socket.on('turnOnCamera', function (data) {
     socket.broadcast.to(data.roomId).emit('turnOnCamera', data)
@@ -162,11 +202,9 @@ app.get('', function (req, res) {
 })
 
 app.post('/user/login', function (req, res) {
-  // console.log('user login', { req })
   let sql = 'SELECT id, firstName, lastName, createdAt, avatar FROM User WHERE userName = ? and password = ?'
   let param = [req.body.userName, req.body.password]
   con.query(sql, param, function (err, result) {
-    //console.log(result);
     if (result != null && result != '') {
       body.status = 200
       body.message = STATUS_SUCCESS
@@ -204,7 +242,6 @@ app.post('/user/register', function (req, res) {
         }
       })
     } else {
-      // console.log(result)
       body.status = 201
       body.message = 'Duplicate userName'
       body.data = null
@@ -228,7 +265,6 @@ app.post('/user', function (req, res) {
       body.message = err
       res.send(body)
     } else {
-      console.log(result.affectedRows + ' record(s) updated')
       body.status = 200
       body.message = STATUS_SUCCESS
       res.send(body)
@@ -237,7 +273,6 @@ app.post('/user', function (req, res) {
 })
 
 app.get('/news', async function (req, res) {
-  // console.log('get news')
   let resNews = []
   const sqlGetNews = 'SELECT * FROM News'
   const sqlGetUser = `SELECT * FROM User WHERE id = ?`
@@ -252,7 +287,6 @@ app.get('/news', async function (req, res) {
     const requestLikeNews = await query(sqlGetListLikeNews, idNews)
     const requestComment = await query(sqlGetListComment, idNews)
     const requestUserLike = await query(sqlGetUserLike, idNews)
-    console.log('get user Like',requestUserLike)
     let news = {
       'idNews': idNews,
       'user': owner[0],
@@ -265,7 +299,6 @@ app.get('/news', async function (req, res) {
     }
     resNews.push(news)
     if (reqNews.length === resNews.length) {
-    // console.log('get news', resNews)
     body.status = 200
     body.message = STATUS_SUCCESS
     body.data =  resNews
@@ -290,7 +323,6 @@ app.get('/comment', async function (req, res) {
     }
     resComment.push(news)
     if (resComment.length === reqComment.length) {
-      // console.log('get comment', resComment)
       body.status = 200
       body.message = STATUS_SUCCESS
       body.data =  resComment
@@ -317,11 +349,9 @@ app.get('/rooms', async function (req, res) {
     }
     rooms.push(room)
   }
-  // console.log('get rooms',rooms)
   body.status = 200
   body.message = STATUS_SUCCESS
   body.data = rooms
-  //console.log(rooms);
   res.send(body)
 })
 
@@ -339,7 +369,6 @@ app.post('/room', async function (req, res) {
 
   }
   ids.push(req.headers.authorization)
-  console.log(ids)
   param = ids.map(id => {
     return [
       parseInt(id),
@@ -388,7 +417,6 @@ app.get('/room/:id', async function (req, res) {
     body.message = STATUS_SUCCESS
     body.data = room
   }
-  //console.log(body.data);
   res.send(body)
 
 })
